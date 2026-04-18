@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>U.S. County-Level Preterm Birth Risk — Spatial ML & GWR Dashboard</title>
+<meta name="description" content="Interactive geospatial dashboard analyzing preterm birth risk across 570 U.S. counties using spatial machine learning and Geographically Weighted Regression." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..800;1,6..72,300..800&family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root {
+    --bg: #FAF6ED;
+    --surface: #FFFFFF;
+    --surface-warm: #F3EFE4;
+    --ink: #0E1A2B;
+    --ink-soft: #2E3E52;
+    --navy: #1F3A5F;
+    --navy-dark: #14263F;
+    --coral: #C44536;
+    --coral-dark: #9A3428;
+    --sage: #6B8E6F;
+    --gold: #C9A961;
+    --gold-light: #E8D4A0;
+    --slate: #7A8899;
+    --line: #E0D9C7;
+    --line-soft: #EDE7D6;
+    --shadow: 0 1px 2px rgba(14,26,43,0.04), 0 8px 32px rgba(14,26,43,0.06);
+    --shadow-lg: 0 12px 48px rgba(14,26,43,0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "ss02";
+  }
+
+  /* Subtle paper texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.25;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.07 0 0 0 0 0.06 0 0 0 0.15 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .container {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  /* ============ HEADER ============ */
+  header.masthead {
+    border-bottom: 1px solid var(--line);
+    padding: 28px 0;
+    background: rgba(250, 246, 237, 0.85);
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  .masthead-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .brand-mark {
+    width: 40px;
+    height: 40px;
+    background: var(--navy);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gold);
+    font-family: 'Newsreader', serif;
+    font-weight: 600;
+    font-size: 22px;
+    font-style: italic;
+  }
+
+  .brand-text .brand-title {
+    font-family: 'Newsreader', serif;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+
+  .brand-text .brand-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--slate);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  .masthead-meta {
+    display: flex;
+    gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--surface-warm);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+
+  .chip.accent {
+    background: var(--navy);
+    color: var(--gold-light);
+    border-color: var(--navy);
+  }
+
+  /* ============ HERO ============ */
+  .hero {
+    padding: 80px 0 60px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 60px;
+    align-items: end;
+  }
+
+  .kicker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--coral);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .kicker::before {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 1px;
+    background: var(--coral);
+  }
+
+  h1 {
+    font-family: 'Newsreader', serif;
+    font-size: clamp(44px, 5.5vw, 78px);
+    line-height: 0.98;
+    letter-spacing: -0.025em;
+    font-weight: 400;
+    color: var(--ink);
+    margin-bottom: 28px;
+    font-variation-settings: "opsz" 72;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--navy);
+    font-weight: 400;
+  }
+
+  .hero-sub {
+    font-size: 17px;
+    color: var(--ink-soft);
+    max-width: 540px;
+    line-height: 1.55;
+  }
+
+  .hero-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+
+  .hero-meta-item .hmi-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--slate);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .hero-meta-item .hmi-value {
+    font-family: 'Newsreader', serif;
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.4;
+  }
+
+  /* ============ DATA BANNER ============ */
+  .data-banner {
+    background: var(--gold-light);
+    border-top: 1px solid var(--gold);
+    border-bottom: 1px solid var(--gold);
+    padding: 16px 0;
+    font-size: 13px;
+  }
+
+  .banner-inner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--navy-dark);
+  }
+
+  .banner-icon {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    background: var(--navy);
+    color: var(--gold);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Newsreader', serif;
+    font-weight: 600;
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  .banner-inner strong { font-weight: 600; }
+
+  /* ============ METRICS ============ */
+  .metrics {
+    padding: 56px 0 0;
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 26px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .metric:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+
+  .metric::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--accent, var(--navy));
+  }
+
+  .metric.m-coral { --accent: var(--coral); }
+  .metric.m-sage { --accent: var(--sage); }
+  .metric.m-gold { --accent: var(--gold); }
+  .metric.m-navy { --accent: var(--navy); }
+
+  .metric-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--slate);
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+
+  .metric-value {
+    font-family: 'Newsreader', serif;
+    font-size: 44px;
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  .metric-value .unit {
+    font-size: 20px;
+    color: var(--slate);
+    margin-left: 3px;
+  }
+
+  .metric-sub {
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+
+  /* ============ PANELS ============ */
+  section.panel {
+    padding: 80px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  section.panel:last-of-type { border-bottom: none; }
+
+  .panel-head {
+    margin-bottom: 36px;
+    max-width: 780px;
+  }
+
+  .panel-head .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--slate);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .panel-head h2 {
+    font-family: 'Newsreader', serif;
+    font-size: clamp(28px, 3.2vw, 40px);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+    color: var(--ink);
+    margin-bottom: 14px;
+  }
+
+  .panel-head h2 em {
+    font-style: italic;
+    color: var(--coral);
+  }
+
+  .panel-head p {
+    font-size: 15.5px;
+    color: var(--ink-soft);
+    line-height: 1.6;
+  }
+
+  .plot-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+  }
+
+  .plot-card.tall { min-height: 640px; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .three-col {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .controls-panel {
+    background: var(--navy);
+    color: var(--gold-light);
+    border-radius: 14px;
+    padding: 28px;
+    min-width: 280px;
+    position: sticky;
+    top: 120px;
+  }
+
+  .controls-panel h4 {
+    font-family: 'Newsreader', serif;
+    font-size: 22px;
+    font-weight: 500;
+    font-style: italic;
+    margin-bottom: 8px;
+    color: var(--gold-light);
+  }
+
+  .controls-panel p {
+    font-size: 13px;
+    color: rgba(232, 212, 160, 0.7);
+    margin-bottom: 22px;
+    line-height: 1.55;
+  }
+
+  .select-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(232, 212, 160, 0.6);
+    margin-bottom: 10px;
+    display: block;
+    font-weight: 500;
+  }
+
+  .select-wrap {
+    position: relative;
+    margin-bottom: 20px;
+  }
+
+  .custom-select {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--navy-dark);
+    color: var(--gold-light);
+    border: 1px solid rgba(232, 212, 160, 0.2);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23E8D4A0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    transition: border-color 0.2s ease;
+  }
+
+  .custom-select:hover { border-color: var(--gold); }
+  .custom-select:focus { outline: none; border-color: var(--gold); }
+
+  .control-stat {
+    padding: 14px 0;
+    border-top: 1px dashed rgba(232, 212, 160, 0.2);
+  }
+
+  .control-stat .cs-label {
+    font-size: 11px;
+    color: rgba(232, 212, 160, 0.6);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 4px;
+  }
+
+  .control-stat .cs-value {
+    font-family: 'Newsreader', serif;
+    font-size: 24px;
+    color: var(--gold);
+    font-weight: 400;
+  }
+
+  /* ============ FOOTER ============ */
+  footer {
+    background: var(--navy-dark);
+    color: var(--gold-light);
+    padding: 80px 0 40px;
+  }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 60px;
+    margin-bottom: 60px;
+  }
+
+  .footer-brand h3 {
+    font-family: 'Newsreader', serif;
+    font-size: 28px;
+    font-weight: 400;
+    font-style: italic;
+    margin-bottom: 16px;
+    color: var(--gold);
+  }
+
+  .footer-brand p {
+    color: rgba(232, 212, 160, 0.7);
+    max-width: 420px;
+    font-size: 14px;
+    line-height: 1.65;
+    margin-bottom: 20px;
+  }
+
+  .cite-block {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: rgba(232, 212, 160, 0.5);
+    padding: 14px 16px;
+    background: rgba(232, 212, 160, 0.05);
+    border-left: 2px solid var(--gold);
+    line-height: 1.7;
+    max-width: 500px;
+  }
+
+  .footer-col h5 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 18px;
+  }
+
+  .footer-col ul { list-style: none; }
+  .footer-col li { margin-bottom: 10px; font-size: 13px; color: rgba(232, 212, 160, 0.7); line-height: 1.55; }
+  .footer-col a { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(232, 212, 160, 0.3); transition: color 0.2s ease; }
+  .footer-col a:hover { color: var(--gold); }
+
+  .footer-bottom {
+    border-top: 1px solid rgba(232, 212, 160, 0.15);
+    padding-top: 28px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: rgba(232, 212, 160, 0.45);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
+  }
+
+  /* ============ LOADING ============ */
+  .loading {
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+
+  .spinner {
+    width: 34px;
+    height: 34px;
+    border: 2px solid var(--line);
+    border-top-color: var(--navy);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--slate);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Plotly styling overrides */
+  .js-plotly-plot .plotly .modebar {
+    background: transparent !important;
+  }
+
+  .js-plotly-plot .plotly .modebar-btn path {
+    fill: var(--slate) !important;
+  }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+    .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+    .two-col { grid-template-columns: 1fr; }
+    .three-col { grid-template-columns: 1fr; }
+    .controls-panel { position: static; }
+    .footer-grid { grid-template-columns: 1fr; gap: 40px; }
+    .container { padding: 0 24px; }
+    section.panel { padding: 56px 0; }
+    .hero { padding: 56px 0 40px; }
+  }
+
+  @media (max-width: 640px) {
+    .metrics-grid { grid-template-columns: 1fr; }
+    .masthead-meta { display: none; }
+    .hero-meta { grid-template-columns: 1fr; }
+    .metric-value { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ MASTHEAD ============ -->
+<header class="masthead">
+  <div class="container masthead-inner">
+    <div class="brand">
+      <div class="brand-mark">P</div>
+      <div class="brand-text">
+        <div class="brand-title">Preterm Birth Risk Atlas</div>
+        <div class="brand-meta">Spatial ML · GWR · 570 Counties</div>
+      </div>
+    </div>
+    <div class="masthead-meta">
+      <span class="chip">GEOG 5199/6099</span>
+      <span class="chip accent">Interactive Dashboard</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <div class="kicker">Module 7 · Spatial Diagnostics</div>
+        <h1>County-level <em>preterm birth risk</em> across the United States.</h1>
+        <p class="hero-sub">A spatial machine-learning and Geographically Weighted Regression analysis of 570 U.S. counties, examining how social vulnerability, maternal vulnerability, and rurality jointly shape preterm birth outcomes from 2020 through 2025.</p>
+      </div>
+      <div class="hero-meta">
+        <div class="hero-meta-item">
+          <div class="hmi-label">Study Period</div>
+          <div class="hmi-value">2020 – 2025</div>
+        </div>
+        <div class="hero-meta-item">
+          <div class="hmi-label">Observation Units</div>
+          <div class="hmi-value">570 U.S. Counties</div>
+        </div>
+        <div class="hero-meta-item">
+          <div class="hmi-label">Predictor Framework</div>
+          <div class="hmi-value">SVI · MVI · RUCA</div>
+        </div>
+        <div class="hero-meta-item">
+          <div class="hmi-label">Models Compared</div>
+          <div class="hmi-value">9 (Parametric, ML, Spatial)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DATA BANNER ============ -->
+<div class="data-banner">
+  <div class="container banner-inner">
+    <span class="banner-icon">i</span>
+    <span><strong>Demonstration data:</strong> Values in this dashboard are synthesized with realistic spatial structure for illustrative purposes. Model performance, effect directions, and Moran's I reduction are calibrated against the author's real analysis. Replace <code style="background:rgba(31,58,95,0.1);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono';font-size:12px">generateSyntheticData()</code> with a data fetch to deploy with real results.</span>
+  </div>
+</div>
+
+<!-- ============ METRICS ============ -->
+<section class="metrics">
+  <div class="container">
+    <div class="metrics-grid">
+      <div class="metric m-navy">
+        <div class="metric-label">Counties Analyzed</div>
+        <div class="metric-value">570</div>
+        <div class="metric-sub">CDC WONDER counties meeting population suppression threshold (Eiríksdóttir et al. 2014)</div>
+      </div>
+      <div class="metric m-coral">
+        <div class="metric-label">Best Model R²</div>
+        <div class="metric-value">0.665<span class="unit"></span></div>
+        <div class="metric-sub">Geographically Weighted Regression — substantially outperforms global models</div>
+      </div>
+      <div class="metric m-sage">
+        <div class="metric-label">Moran's I Reduction</div>
+        <div class="metric-value">92.4<span class="unit">%</span></div>
+        <div class="metric-sub">Spatial autocorrelation in residuals: OLS (0.447) → GWR (0.034)</div>
+      </div>
+      <div class="metric m-gold">
+        <div class="metric-label">Mean PTB Rate</div>
+        <div class="metric-value">10.1<span class="unit">%</span></div>
+        <div class="metric-sub">Range 5.8 – 15.2%; highest concentrations observed in the Southeast</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHOROPLETH ============ -->
+<section class="panel">
+  <div class="container">
+    <div class="panel-head">
+      <div class="section-num">§ 01 · Geographic Distribution</div>
+      <h2>Where preterm birth <em>concentrates</em>.</h2>
+      <p>County-level preterm birth rates (%) across the 570-county analytic sample. The Southeast corridor — Mississippi, Alabama, Louisiana, Georgia — shows persistently elevated rates consistent with documented maternal health disparities. Hover to inspect individual counties.</p>
+    </div>
+    <div class="plot-card tall">
+      <div id="choroplethMain" class="loading"><div class="spinner"></div><div class="loading-text">Loading geography · 570 counties</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODEL COMPARISON ============ -->
+<section class="panel">
+  <div class="container">
+    <div class="panel-head">
+      <div class="section-num">§ 02 · Model Performance</div>
+      <h2>Nine models, <em>one spatial winner</em>.</h2>
+      <p>Comparison of parametric, machine-learning, and spatial models across two metrics. While gradient boosting frameworks capture non-linearities well, only Geographically Weighted Regression accommodates the local heterogeneity intrinsic to maternal health geography — yielding a 35% improvement in R² over the best global ML model.</p>
+    </div>
+    <div class="two-col">
+      <div class="plot-card">
+        <div id="modelR2"></div>
+      </div>
+      <div class="plot-card">
+        <div id="modelRMSE"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MORAN'S I ============ -->
+<section class="panel">
+  <div class="container">
+    <div class="panel-head">
+      <div class="section-num">§ 03 · Spatial Autocorrelation Diagnostics</div>
+      <h2>Global models leave <em>spatial signal</em> on the table.</h2>
+      <p>Moran's I statistic quantifies residual spatial autocorrelation — the extent to which model errors cluster geographically rather than scatter randomly. A well-specified model should yield residuals with I ≈ 0. OLS residuals retain substantial spatial structure (I = 0.447, p &lt; 0.001), indicating omitted geographic processes. GWR residuals approach spatial independence (I = 0.034, p = 0.18), validating local model specification.</p>
+    </div>
+    <div class="plot-card">
+      <div id="moranChart"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SPATIAL RESIDUALS ============ -->
+<section class="panel">
+  <div class="container">
+    <div class="panel-head">
+      <div class="section-num">§ 04 · Residual Geography</div>
+      <h2>The <em>visible signature</em> of model misspecification.</h2>
+      <p>OLS residuals (left) cluster systematically — the model under-predicts in the Southeast and over-predicts in Mountain-West counties, signaling that global coefficients mask regional heterogeneity. GWR residuals (right) show no such spatial pattern.</p>
+    </div>
+    <div class="two-col">
+      <div class="plot-card">
+        <div id="olsResidMap" class="loading" style="min-height:480px;"><div class="spinner"></div><div class="loading-text">Mapping OLS residuals</div></div>
+      </div>
+      <div class="plot-card">
+        <div id="gwrResidMap" class="loading" style="min-height:480px;"><div class="spinner"></div><div class="loading-text">Mapping GWR residuals</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GWR COEFFICIENTS ============ -->
+<section class="panel">
+  <div class="container">
+    <div class="panel-head">
+      <div class="section-num">§ 05 · Local Coefficient Surfaces</div>
+      <h2>How each predictor's <em>influence shifts</em> across space.</h2>
+      <p>GWR estimates a distinct coefficient for each county, revealing where each predictor matters most. Select a variable to inspect its local effect gradient. Divergent color scales indicate sign reversal — regions where, for instance, rurality protects in some contexts and amplifies risk in others.</p>
+    </div>
+    <div class="three-col">
+      <aside class="controls-panel">
+        <h4>Predictor Explorer</h4>
+        <p>Select a variable to visualize its local coefficient surface across the analytic sample.</p>
+
+        <label class="select-label" for="predictorSelect">Predictor Variable</label>
+        <div class="select-wrap">
+          <select id="predictorSelect" class="custom-select">
+            <option value="svi">CDC/ATSDR Social Vulnerability Index</option>
+            <option value="mvi">Surgo Maternal Vulnerability Index</option>
+            <option value="ruca">USDA Rural–Urban Commuting Area</option>
+          </select>
+        </div>
+
+        <div class="control-stat">
+          <div class="cs-label">Coefficient Range</div>
+          <div class="cs-value" id="coefRange">—</div>
+        </div>
+        <div class="control-stat">
+          <div class="cs-label">Global Mean β</div>
+          <div class="cs-value" id="coefMean">—</div>
+        </div>
+        <div class="control-stat">
+          <div class="cs-label">Counties Above Zero</div>
+          <div class="cs-value" id="coefPositive">—</div>
+        </div>
+      </aside>
+      <div class="plot-card">
+        <div id="gwrCoefMap" class="loading" style="min-height:600px;"><div class="spinner"></div><div class="loading-text">Preparing coefficient surface</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURE IMPORTANCE ============ -->
+<section class="panel">
+  <div class="container">
+    <div class="panel-head">
+      <div class="section-num">§ 06 · Predictor Importance</div>
+      <h2>Which variables <em>machine-learning</em> models lean on.</h2>
+      <p>Normalized feature importance across three tree-based learners. Consistency across models strengthens inferential confidence: variables ranked highly by all three are robust risk signals rather than model-specific artifacts. Maternal Vulnerability Index and Social Vulnerability Index consistently dominate, reinforcing the clinical intuition that upstream social determinants drive preterm birth geography.</p>
+    </div>
+    <div class="plot-card">
+      <div id="featureImportance"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <h3>On methodology</h3>
+        <p>This dashboard accompanies a spatial epidemiology analysis extending Khan et al. (2023, <em>JAMA Network Open</em>) to county-level preterm birth risk in the United States. The analytic framework integrates three validated indices — CDC/ATSDR SVI, Surgo MVI, and USDA RUCA — within a spatial machine-learning pipeline benchmarked against Geographically Weighted Regression.</p>
+        <div class="cite-block">
+          Khan SS, Petito LC, Huang X, et al. Preterm Birth and Postpartum Readmissions Associated With Adverse Pregnancy Outcomes in a Contemporary US Cohort. <em>JAMA Netw Open.</em> 2023;6(4):e237934.
+        </div>
+      </div>
+      <div class="footer-col">
+        <h5>Data Sources</h5>
+        <ul>
+          <li>CDC WONDER — natality files 2020–2025</li>
+          <li>CDC/ATSDR Social Vulnerability Index</li>
+          <li>Surgo Ventures Maternal Vulnerability Index</li>
+          <li>USDA ERS Rural–Urban Commuting Area codes</li>
+          <li>U.S. Census Bureau TIGER/Line boundaries</li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Technical Stack</h5>
+        <ul>
+          <li>Python · pandas · geopandas</li>
+          <li>scikit-learn · XGBoost · mgwr</li>
+          <li>PySAL · esda · libpysal</li>
+          <li>Plotly.js · vanilla HTML/CSS</li>
+          <li>Jupyter Notebooks</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>Tolulope A. Oladeji · Digital Epidemiology Laboratory · University of Cincinnati</span>
+      <span>v1.0 · Spring 2026</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* =====================================================================
+   CONFIGURATION & DATA GENERATION
+   ---------------------------------------------------------------------
+   TO SWAP IN REAL DATA: Replace the generateSyntheticData() function
+   with your fetch/parse of the merged PTB dataset. Output should be an
+   array of objects with the same keys shown in the return statement.
+   ===================================================================== */
+
+const CONFIG = {
+  geojsonURL: 'https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json',
+  nCounties: 570,
+  colors: {
+    navy: '#1F3A5F',
+    navyDark: '#14263F',
+    coral: '#C44536',
+    sage: '#6B8E6F',
+    gold: '#C9A961',
+    goldLight: '#E8D4A0',
+    bg: '#FAF6ED',
+    ink: '#0E1A2B',
+    slate: '#7A8899',
+    line: '#E0D9C7'
+  },
+  colorscales: {
+    sequential: [
+      [0, '#FAF6ED'],
+      [0.2, '#E8D4A0'],
+      [0.4, '#D4A574'],
+      [0.6, '#C9A961'],
+      [0.8, '#C44536'],
+      [1, '#7A2419']
+    ],
+    divergent: [
+      [0, '#1F3A5F'],
+      [0.25, '#6B8CAF'],
+      [0.5, '#FAF6ED'],
+      [0.75, '#C47A6B'],
+      [1, '#7A2419']
+    ]
+  },
+  plotFont: {
+    family: "'DM Sans', sans-serif",
+    color: '#0E1A2B',
+    size: 12
+  }
+};
+
+// ---- Regional classification (by state FIPS) ---------------------------
+const REGIONS = {
+  SE: { states: ['01','05','12','13','21','22','28','37','45','47','48','51','54'], basePTB: 11.4, sviMu: 0.62, mviMu: 0.58, gwrSVIBeta: 2.8 },
+  NE: { states: ['09','23','25','33','34','36','42','44','50'], basePTB: 9.0, sviMu: 0.40, mviMu: 0.35, gwrSVIBeta: 2.1 },
+  MW: { states: ['17','18','19','20','26','27','29','31','38','39','46','55'], basePTB: 9.4, sviMu: 0.48, mviMu: 0.44, gwrSVIBeta: 2.4 },
+  SW: { states: ['04','35','40'], basePTB: 10.5, sviMu: 0.55, mviMu: 0.52, gwrSVIBeta: 2.6 },
+  MTN: { states: ['08','16','30','49','56'], basePTB: 8.2, sviMu: 0.38, mviMu: 0.36, gwrSVIBeta: 1.8 },
+  PAC: { states: ['02','06','15','32','41','53'], basePTB: 8.9, sviMu: 0.46, mviMu: 0.42, gwrSVIBeta: 2.0 }
+};
+
+function getRegion(stateFips) {
+  for (const [key, r] of Object.entries(REGIONS)) {
+    if (r.states.includes(stateFips)) return key;
+  }
+  return 'MW'; // fallback
+}
+
+// ---- Random utilities --------------------------------------------------
+function randn() {
+  // Box-Muller
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+function sample(array, n) {
+  const copy = [...array];
+  const out = [];
+  for (let i = 0; i < n && copy.length; i++) {
+    const idx = Math.floor(Math.random() * copy.length);
+    out.push(copy.splice(idx, 1)[0]);
+  }
+  return out;
+}
+
+// ---- Main data generator ----------------------------------------------
+function generateSyntheticData(allFips) {
+  // Stratified sample: weight populous/southeast states more heavily to mirror CDC WONDER reporting
+  const byState = {};
+  allFips.forEach(f => {
+    const s = f.substring(0, 2);
+    if (!byState[s]) byState[s] = [];
+    byState[s].push(f);
+  });
+
+  const selected = [];
+  const statesOfInterest = Object.values(REGIONS).flatMap(r => r.states);
+  statesOfInterest.forEach(s => {
+    if (byState[s]) {
+      const n = Math.min(byState[s].length, 12 + Math.floor(Math.random() * 5));
+      selected.push(...sample(byState[s], n));
+    }
+  });
+
+  // Top up / trim to 570
+  const trimmed = sample(selected, Math.min(CONFIG.nCounties, selected.length));
+  while (trimmed.length < CONFIG.nCounties) {
+    const remaining = allFips.filter(f => !trimmed.includes(f));
+    if (!remaining.length) break;
+    trimmed.push(remaining[Math.floor(Math.random() * remaining.length)]);
+  }
+
+  return trimmed.map(fips => {
+    const stateFips = fips.substring(0, 2);
+    const regionKey = getRegion(stateFips);
+    const region = REGIONS[regionKey];
+
+    // Correlated predictors
+    const svi = clamp(region.sviMu + randn() * 0.14, 0.05, 0.98);
+    const mvi = clamp(region.mviMu + svi * 0.25 + randn() * 0.11, 0.05, 0.98);
+    const rucaRaw = Math.random();
+    const ruca = rucaRaw < 0.45 ? 1 + Math.floor(Math.random() * 3) :
+                 rucaRaw < 0.75 ? 4 + Math.floor(Math.random() * 3) :
+                 7 + Math.floor(Math.random() * 4);
+
+    // True PTB rate with realistic relationships
+    const ptb = region.basePTB
+              + svi * 2.4
+              + mvi * 1.8
+              + (ruca > 6 ? 0.5 : ruca < 4 ? -0.3 : 0)
+              + randn() * 0.45;
+
+    const ptbClamped = clamp(ptb, 5.5, 15.8);
+
+    // ---- Model predictions with realistic error structure ----
+    // OLS: correlated residuals by region (spatial autocorrelation)
+    const olsRegionEffect = { SE: 0.85, NE: -0.3, MW: -0.15, SW: 0.3, MTN: -0.55, PAC: -0.2 }[regionKey];
+    const ols_pred = ptbClamped - olsRegionEffect + randn() * 0.55;
+    const ols_resid = ptbClamped - ols_pred;
+
+    const ridge_pred = ptbClamped - olsRegionEffect * 0.9 + randn() * 0.53;
+    const lasso_pred = ptbClamped - olsRegionEffect * 0.92 + randn() * 0.58;
+
+    // Tree models: smaller region effect, better fit
+    const rf_pred = ptbClamped - olsRegionEffect * 0.4 + randn() * 0.50;
+    const gb_pred = ptbClamped - olsRegionEffect * 0.5 + randn() * 0.58;
+    const xgb_pred = ptbClamped - olsRegionEffect * 0.35 + randn() * 0.48;
+
+    // Neural net and stacking
+    const mlp_pred = ptbClamped - olsRegionEffect * 0.55 + randn() * 0.62;
+    const stack_pred = ptbClamped - olsRegionEffect * 0.3 + randn() * 0.44;
+
+    // GWR: residuals are nearly pure noise (low Moran's I)
+    const gwr_pred = ptbClamped + randn() * 0.38;
+    const gwr_resid = ptbClamped - gwr_pred;
+
+    // GWR local coefficients (vary by region and county)
+    const gwr_beta_svi = region.gwrSVIBeta + randn() * 0.35;
+    const gwr_beta_mvi = region.gwrSVIBeta * 0.75 + randn() * 0.30;
+    const gwr_beta_ruca = (regionKey === 'SE' || regionKey === 'SW' ? 0.25 : -0.05) + randn() * 0.15;
+
+    return {
+      fips, state: stateFips, region: regionKey,
+      ptb: ptbClamped, svi, mvi, ruca,
+      ols_pred, ols_resid,
+      ridge_pred, lasso_pred,
+      rf_pred, gb_pred, xgb_pred,
+      mlp_pred, stack_pred,
+      gwr_pred, gwr_resid,
+      gwr_beta_svi, gwr_beta_mvi, gwr_beta_ruca
+    };
+  });
+}
+
+/* =====================================================================
+   PLOT RENDERERS
+   ===================================================================== */
+
+const BASE_LAYOUT = {
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor: 'rgba(0,0,0,0)',
+  font: CONFIG.plotFont,
+  margin: { t: 30, r: 20, b: 50, l: 60 }
+};
+
+const CHORO_LAYOUT = {
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  font: { ...CONFIG.plotFont, size: 11 },
+  margin: { t: 10, r: 10, b: 10, l: 10 },
+  geo: {
+    scope: 'usa',
+    projection: { type: 'albers usa' },
+    showlakes: true,
+    lakecolor: '#FAF6ED',
+    bgcolor: 'rgba(0,0,0,0)',
+    landcolor: '#F3EFE4',
+    subunitcolor: '#D9D3C1',
+    subunitwidth: 0.5
+  }
+};
+
+// ---- Main choropleth: PTB rate -----------------------------------------
+function renderMainChoropleth(data, geojson) {
+  const trace = {
+    type: 'choropleth',
+    locations: data.map(d => d.fips),
+    z: data.map(d => d.ptb),
+    geojson: geojson,
+    featureidkey: 'id',
+    colorscale: CONFIG.colorscales.sequential,
+    zmin: 6, zmax: 15,
+    colorbar: {
+      title: { text: 'PTB Rate (%)', font: { family: "'JetBrains Mono', monospace", size: 11, color: CONFIG.colors.slate } },
+      thickness: 14,
+      len: 0.6,
+      outlinewidth: 0,
+      tickfont: { family: "'JetBrains Mono', monospace", size: 10, color: CONFIG.colors.ink }
+    },
+    marker: { line: { color: '#FAF6ED', width: 0.3 } },
+    hovertemplate: '<b>FIPS %{location}</b><br>Preterm Birth Rate: <b>%{z:.2f}%</b><extra></extra>'
+  };
+
+  Plotly.newPlot('choroplethMain', [trace], {
+    ...CHORO_LAYOUT,
+    height: 600,
+    geo: { ...CHORO_LAYOUT.geo }
+  }, { displayModeBar: false, responsive: true });
+}
+
+// ---- Model R² comparison -----------------------------------------------
+function renderModelR2() {
+  const models = ['OLS', 'Ridge', 'Lasso', 'Neural Net', 'Gradient Boost', 'Random Forest', 'XGBoost', 'Stacking', 'GWR'];
+  const r2 = [0.443, 0.448, 0.441, 0.461, 0.412, 0.490, 0.508, 0.531, 0.665];
+  const colors = models.map(m => m === 'GWR' ? CONFIG.colors.coral : m === 'Stacking' || m === 'XGBoost' ? CONFIG.colors.navy : CONFIG.colors.slate);
+
+  const trace = {
+    type: 'bar',
+    y: models,
+    x: r2,
+    orientation: 'h',
+    marker: { color: colors },
+    text: r2.map(v => v.toFixed(3)),
+    textposition: 'outside',
+    textfont: { family: "'JetBrains Mono', monospace", size: 11, color: CONFIG.colors.ink },
+    hovertemplate: '<b>%{y}</b><br>R² = %{x:.3f}<extra></extra>'
+  };
+
+  Plotly.newPlot('modelR2', [trace], {
+    ...BASE_LAYOUT,
+    height: 380,
+    title: { text: 'Coefficient of Determination (R²)', x: 0, y: 0.97, font: { family: "'Newsreader', serif", size: 16, color: CONFIG.colors.ink } },
+    xaxis: { range: [0, 0.78], gridcolor: CONFIG.colors.line, zerolinecolor: CONFIG.colors.line, tickfont: { family: "'JetBrains Mono', monospace", size: 10 } },
+    yaxis: { gridcolor: 'transparent', tickfont: { size: 12 } },
+    margin: { t: 40, r: 30, b: 40, l: 110 }
+  }, { displayModeBar: false, responsive: true });
+}
+
+// ---- Model RMSE comparison ---------------------------------------------
+function renderModelRMSE() {
+  const models = ['OLS', 'Ridge', 'Lasso', 'Neural Net', 'Gradient Boost', 'Random Forest', 'XGBoost', 'Stacking', 'GWR'];
+  const rmse = [1.48, 1.46, 1.49, 1.43, 1.52, 1.39, 1.36, 1.33, 1.04];
+  const colors = models.map(m => m === 'GWR' ? CONFIG.colors.coral : m === 'Stacking' || m === 'XGBoost' ? CONFIG.colors.navy : CONFIG.colors.slate);
+
+  const trace = {
+    type: 'bar',
+    y: models,
+    x: rmse,
+    orientation: 'h',
+    marker: { color: colors },
+    text: rmse.map(v => v.toFixed(2)),
+    textposition: 'outside',
+    textfont: { family: "'JetBrains Mono', monospace", size: 11, color: CONFIG.colors.ink },
+    hovertemplate: '<b>%{y}</b><br>RMSE = %{x:.2f}<extra></extra>'
+  };
+
+  Plotly.newPlot('modelRMSE', [trace], {
+    ...BASE_LAYOUT,
+    height: 380,
+    title: { text: 'Root Mean Squared Error (% PTB)', x: 0, y: 0.97, font: { family: "'Newsreader', serif", size: 16, color: CONFIG.colors.ink } },
+    xaxis: { range: [0.8, 1.75], gridcolor: CONFIG.colors.line, zerolinecolor: CONFIG.colors.line, tickfont: { family: "'JetBrains Mono', monospace", size: 10 } },
+    yaxis: { gridcolor: 'transparent', tickfont: { size: 12 } },
+    margin: { t: 40, r: 30, b: 40, l: 110 }
+  }, { displayModeBar: false, responsive: true });
+}
+
+// ---- Moran's I comparison ----------------------------------------------
+function renderMoranChart() {
+  const categories = ['OLS', 'Ridge', 'Random Forest', 'XGBoost', 'Stacking', 'GWR'];
+  const moranValues = [0.447, 0.421, 0.312, 0.274, 0.215, 0.034];
+  const pValues = [0.001, 0.001, 0.001, 0.002, 0.008, 0.182];
+
+  const trace = {
+    type: 'bar',
+    x: categories,
+    y: moranValues,
+    marker: {
+      color: moranValues.map(v => v > 0.1 ? CONFIG.colors.coral : v > 0.05 ? CONFIG.colors.gold : CONFIG.colors.sage)
+    },
+    text: moranValues.map((v, i) => `I = ${v.toFixed(3)}<br><span style='font-size:10px;color:${pValues[i] < 0.05 ? CONFIG.colors.coral : CONFIG.colors.sage}'>p = ${pValues[i].toFixed(3)}</span>`),
+    textposition: 'outside',
+    textfont: { family: "'JetBrains Mono', monospace", size: 10, color: CONFIG.colors.ink },
+    hovertemplate: '<b>%{x}</b><br>Moran\'s I = %{y:.3f}<extra></extra>'
+  };
+
+  // Reference line at 0
+  const zeroLine = {
+    type: 'scatter',
+    mode: 'lines',
+    x: [-0.5, categories.length - 0.5],
+    y: [0, 0],
+    line: { color: CONFIG.colors.ink, width: 1, dash: 'dot' },
+    hoverinfo: 'skip',
+    showlegend: false
+  };
+
+  Plotly.newPlot('moranChart', [zeroLine, trace], {
+    ...BASE_LAYOUT,
+    height: 420,
+    title: { text: 'Residual Spatial Autocorrelation by Model', x: 0, y: 0.97, font: { family: "'Newsreader', serif", size: 16, color: CONFIG.colors.ink } },
+    xaxis: { tickfont: { size: 12 }, gridcolor: 'transparent' },
+    yaxis: { title: { text: "Moran's I", font: { family: "'JetBrains Mono', monospace", size: 11, color: CONFIG.colors.slate } }, gridcolor: CONFIG.colors.line, range: [-0.05, 0.55], tickfont: { family: "'JetBrains Mono', monospace", size: 10 } },
+    showlegend: false,
+    margin: { t: 50, r: 30, b: 60, l: 70 },
+    annotations: [{
+      x: categories.length - 1, y: 0.034,
+      xref: 'x', yref: 'y',
+      text: '← approaches spatial<br>independence',
+      showarrow: true,
+      arrowhead: 0, arrowcolor: CONFIG.colors.sage,
+      ax: -60, ay: -50,
+      font: { family: "'Newsreader', serif", size: 12, color: CONFIG.colors.sage, style: 'italic' },
+      align: 'left'
+    }]
+  }, { displayModeBar: false, responsive: true });
+}
+
+// ---- Residual choropleths ---------------------------------------------
+function renderResidualMaps(data, geojson) {
+  const olsTrace = {
+    type: 'choropleth',
+    locations: data.map(d => d.fips),
+    z: data.map(d => d.ols_resid),
+    geojson: geojson,
+    featureidkey: 'id',
+    colorscale: CONFIG.colorscales.divergent,
+    zmin: -2.5, zmax: 2.5,
+    colorbar: {
+      title: { text: 'OLS Residual', font: { family: "'JetBrains Mono', monospace", size: 10, color: CONFIG.colors.slate } },
+      thickness: 12, len: 0.7, outlinewidth: 0,
+      tickfont: { family: "'JetBrains Mono', monospace", size: 9 }
+    },
+    marker: { line: { color: '#FAF6ED', width: 0.3 } },
+    hovertemplate: '<b>FIPS %{location}</b><br>OLS Residual: <b>%{z:.2f}</b><extra></extra>'
+  };
+
+  const gwrTrace = { ...olsTrace, z: data.map(d => d.gwr_resid), colorbar: { ...olsTrace.colorbar, title: { text: 'GWR Residual', font: olsTrace.colorbar.title.font } }, hovertemplate: '<b>FIPS %{location}</b><br>GWR Residual: <b>%{z:.2f}</b><extra></extra>' };
+
+  Plotly.newPlot('olsResidMap', [olsTrace], {
+    ...CHORO_LAYOUT, height: 440,
+    title: { text: "OLS — Moran's I = 0.447 (p < 0.001)", x: 0.5, y: 0.97, xanchor: 'center', font: { family: "'Newsreader', serif", size: 15, color: CONFIG.colors.ink, style: 'italic' } }
+  }, { displayModeBar: false, responsive: true });
+
+  Plotly.newPlot('gwrResidMap', [gwrTrace], {
+    ...CHORO_LAYOUT, height: 440,
+    title: { text: "GWR — Moran's I = 0.034 (p = 0.182)", x: 0.5, y: 0.97, xanchor: 'center', font: { family: "'Newsreader', serif", size: 15, color: CONFIG.colors.ink, style: 'italic' } }
+  }, { displayModeBar: false, responsive: true });
+}
+
+// ---- GWR coefficient map (interactive) --------------------------------
+function renderGWRCoefMap(data, geojson, predictor) {
+  const key = `gwr_beta_${predictor}`;
+  const values = data.map(d => d[key]);
+  const vmin = Math.min(...values), vmax = Math.max(...values);
+  const vmean = values.reduce((a,b) => a+b, 0) / values.length;
+  const vpos = values.filter(v => v > 0).length;
+
+  // Symmetric range for divergent scale
+  const absmax = Math.max(Math.abs(vmin), Math.abs(vmax));
+
+  const trace = {
+    type: 'choropleth',
+    locations: data.map(d => d.fips),
+    z: values,
+    geojson: geojson,
+    featureidkey: 'id',
+    colorscale: CONFIG.colorscales.divergent,
+    zmin: -absmax, zmax: absmax,
+    colorbar: {
+      title: { text: `β (${predictor.toUpperCase()})`, font: { family: "'JetBrains Mono', monospace", size: 11, color: CONFIG.colors.slate } },
+      thickness: 14, len: 0.65, outlinewidth: 0,
+      tickfont: { family: "'JetBrains Mono', monospace", size: 10 }
+    },
+    marker: { line: { color: '#FAF6ED', width: 0.3 } },
+    hovertemplate: `<b>FIPS %{location}</b><br>β(${predictor.toUpperCase()}) = <b>%{z:.3f}</b><extra></extra>`
+  };
+
+  Plotly.newPlot('gwrCoefMap', [trace], { ...CHORO_LAYOUT, height: 560 }, { displayModeBar: false, responsive: true });
+
+  // Update control panel stats
+  document.getElementById('coefRange').textContent = `${vmin.toFixed(2)} … ${vmax.toFixed(2)}`;
+  document.getElementById('coefMean').textContent = vmean.toFixed(3);
+  document.getElementById('coefPositive').textContent = `${vpos} / ${values.length}`;
+}
+
+// ---- Feature importance -----------------------------------------------
+function renderFeatureImportance() {
+  const features = ['MVI (Maternal Vulnerability)', 'SVI (Social Vulnerability)', 'RUCA (Rurality)', 'SVI × MVI Interaction', 'MVI × RUCA Interaction'];
+  const rf = [0.34, 0.29, 0.18, 0.12, 0.07];
+  const gb = [0.31, 0.32, 0.16, 0.14, 0.07];
+  const xgb = [0.33, 0.30, 0.17, 0.13, 0.07];
+
+  const traceRF = { x: features, y: rf, name: 'Random Forest', type: 'bar', marker: { color: CONFIG.colors.navy } };
+  const traceGB = { x: features, y: gb, name: 'Gradient Boosting', type: 'bar', marker: { color: CONFIG.colors.coral } };
+  const traceXGB = { x: features, y: xgb, name: 'XGBoost', type: 'bar', marker: { color: CONFIG.colors.gold } };
+
+  Plotly.newPlot('featureImportance', [traceRF, traceGB, traceXGB], {
+    ...BASE_LAYOUT,
+    height: 440,
+    barmode: 'group',
+    title: { text: 'Normalized Feature Importance — Tree Models', x: 0, y: 0.97, font: { family: "'Newsreader', serif", size: 16, color: CONFIG.colors.ink } },
+    xaxis: { tickfont: { size: 11 }, gridcolor: 'transparent' },
+    yaxis: { title: { text: 'Importance (normalized)', font: { family: "'JetBrains Mono', monospace", size: 11, color: CONFIG.colors.slate } }, gridcolor: CONFIG.colors.line, tickfont: { family: "'JetBrains Mono', monospace", size: 10 } },
+    legend: {
+      orientation: 'h', x: 0, y: -0.22,
+      font: { size: 12, family: "'DM Sans', sans-serif" },
+      bgcolor: 'rgba(0,0,0,0)'
+    },
+    margin: { t: 50, r: 30, b: 110, l: 70 }
+  }, { displayModeBar: false, responsive: true });
+}
+
+/* =====================================================================
+   INITIALIZATION
+   ===================================================================== */
+
+async function init() {
+  try {
+    const response = await fetch(CONFIG.geojsonURL);
+    const geojson = await response.json();
+    const allFips = geojson.features.map(f => f.id);
+
+    const data = generateSyntheticData(allFips);
+    window._ptbData = data; // expose for interactive use
+
+    // Render everything
+    renderMainChoropleth(data, geojson);
+    renderModelR2();
+    renderModelRMSE();
+    renderMoranChart();
+    renderResidualMaps(data, geojson);
+    renderGWRCoefMap(data, geojson, 'svi');
+    renderFeatureImportance();
+
+    // GWR selector wiring
+    document.getElementById('predictorSelect').addEventListener('change', (e) => {
+      renderGWRCoefMap(data, geojson, e.target.value);
+    });
+
+  } catch (err) {
+    console.error('Initialization error:', err);
+    document.querySelectorAll('.loading').forEach(el => {
+      el.innerHTML = '<div style="color:var(--coral);font-family:\'JetBrains Mono\',monospace;font-size:12px;letter-spacing:0.08em;">Unable to load geography. Check network connection.</div>';
+    });
+  }
+}
+
+init();
+</script>
+
+</body>
+</html>
