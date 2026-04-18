@@ -3,8 +3,8 @@
 > **Geospatial Modeling of Preterm Birth Risk Across U.S. Counties: A Health Security Perspective**
 > An interactive dashboard companion to a spatial epidemiology analysis benchmarking nine modeling approaches — including Geographically Weighted Regression — against county-level preterm birth data for 2023.
 
-**Live dashboard:** https://tadedoyinsola.github.io/REPO-NAME/
-*(replace `REPO-NAME` with the actual repository name)*
+**Live dashboard:** https://tadedoyinsola.github.io/preterm-birth-dashboard/
+
 
 ---
 
@@ -14,7 +14,7 @@ This project analyzes the geographic distribution of preterm birth rates across 
 
 **Author:** Tolulope Adedoyin Oladeji
 **Affiliation:** Digital Epidemiology Laboratory, University of Cincinnati
-**Course:** GEOG 5199/6099 — Exploratory Data Analytics with GIS (Spring 2026)
+**Course:** GEOG 5199/6099 — Exploratory Data Analytics with GIS 
 
 ---
 
