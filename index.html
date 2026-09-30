@@ -256,7 +256,7 @@
     <div class="panel-head">
       <div class="section-num">§ 02 · Model Performance</div>
       <h2>Eight models, <em>one spatially valid fit</em>.</h2>
-      <p>Comparison of parametric, ensemble machine-learning, deep learning, and spatial-regression approaches. On full-sample R², the tree-based ensembles fit most closely (Gradient Boosting 0.701, XGBoost 0.676), with Geographically Weighted Regression close behind (0.665). GWR's distinct contribution lies elsewhere: its residuals are the only ones that show no significant spatial autocorrelation (Moran's I = 0.006, p = 0.22, against 0.069 for the best machine-learning model and 0.075 for OLS, both p &lt; 0.001), and its county-specific coefficients reveal where each predictor matters.</p>
+      <p>Comparison of parametric, ensemble machine-learning, deep learning, and spatial-regression approaches. On full-sample R², the tree-based ensembles fit most closely (Gradient Boosting 0.701, XGBoost 0.676), with Geographically Weighted Regression close behind (0.665). GWR's distinct contribution lies elsewhere: its residuals are the only ones that show no significant spatial autocorrelation (Moran's I = 0.006, p = 0.22, against 0.069 for the random forest and 0.075 for OLS, both p &lt; 0.001), and its county-specific coefficients reveal where each predictor matters.</p>
     </div>
     <div class="two-col">
       <div class="plot-card"><div id="modelR2"></div></div>
@@ -304,7 +304,7 @@
     <div class="panel-head">
       <div class="section-num">§ 05 · Local Coefficient Surfaces</div>
       <h2>How each predictor's <em>influence shifts</em> across space.</h2>
-      <p>GWR estimates a distinct coefficient for every county, revealing where each predictor matters most. Use the selector to explore local effects for all seven predictors in the GWR specification. Divergent color scales indicate sign reversal — geographies where, for example, uninsured rate may amplify risk in some contexts and attenuate it in others. All values are fitted coefficients from the mgwr Gaussian GWR with bisquare kernel and adaptive bandwidth (n = 131 nearest neighbors).</p>
+      <p>GWR estimates a distinct coefficient for every county, revealing where each predictor matters most. Use the selector to explore local effects for all seven predictors in the GWR specification. Divergent color scales indicate sign reversal — geographies where, for example, uninsured rate may amplify risk in some contexts and attenuate it in others. All values are fitted coefficients from the mgwr Gaussian GWR with bisquare kernel and adaptive bandwidth (n = 131 nearest neighbors). Significance is assessed at the multiple-testing-adjusted critical value of da Silva and Fotheringham (2016), |t| &gt; 2.80, rather than the nominal 1.96; with 75.6 effective parameters across 570 local models, the nominal threshold would overstate how widely each effect is detectable.</p>
     </div>
     <div class="three-col">
       <aside class="controls-panel">
@@ -324,12 +324,12 @@
           <label class="sig-toggle-label">
             <input type="checkbox" id="sigToggle" />
             <span class="sig-toggle-slider"></span>
-            <span class="sig-toggle-text">Show only significant (|t| &gt; 1.96)</span>
+            <span class="sig-toggle-text">Show only significant (|t| &gt; 2.80, adjusted)</span>
           </label>
         </div>
         <div class="control-stat"><div class="cs-label">Coefficient Range</div><div class="cs-value" id="coefRange">—</div></div>
         <div class="control-stat"><div class="cs-label">Sample Mean β</div><div class="cs-value" id="coefMean">—</div></div>
-        <div class="control-stat"><div class="cs-label">Significant (p &lt; 0.05)</div><div class="cs-value" id="coefSignificant">—</div></div>
+        <div class="control-stat"><div class="cs-label">Significant (adjusted, |t| &gt; 2.80)</div><div class="cs-value" id="coefSignificant">—</div></div>
         <div class="control-stat"><div class="cs-label">Counties Above Zero</div><div class="cs-value" id="coefPositive">—</div></div>
         <div class="control-stat"><div class="cs-label">Direction Consistency</div><div class="cs-value" id="coefConsistency">—</div></div>
       </aside>
@@ -518,7 +518,7 @@ function renderMoranChart() {
   const zeroLine = { type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: 0, y1: 0, line: { color: COLORS.ink, width: 1, dash: 'dot' } };
   Plotly.newPlot('moranChart', [trace], {
     ...BASE_LAYOUT, height: 420,
-    title: { text: 'Residual Spatial Autocorrelation (k-nearest neighbors weights)', x: 0, y: 0.97, font: { family: "'Newsreader', serif", size: 16, color: COLORS.ink } },
+    title: { text: 'Residual Spatial Autocorrelation (inverse-distance weights, 999 permutations)', x: 0, y: 0.97, font: { family: "'Newsreader', serif", size: 16, color: COLORS.ink } },
     xaxis: { type: 'category', tickfont: { size: 12.5 }, gridcolor: 'transparent' },
     shapes: [zeroLine],
     yaxis: { title: { text: "Moran's I", font: { family: "'JetBrains Mono', monospace", size: 11, color: COLORS.slate } }, gridcolor: COLORS.line, range: [-0.02, 0.21], tickfont: { family: "'JetBrains Mono', monospace", size: 10 } },
@@ -575,6 +575,8 @@ const PREDICTOR_LABELS = {
   gwr_pop:   { label: 'Log Total Population',   tval: 'tval_pop' }
 };
 
+const T_CRIT = 2.800;  // adjusted critical |t| (mgwr critical_tval(), ENP = 75.6)
+
 function renderGWRCoefMap(data, geojson, predictor, significantOnly) {
   const meta = PREDICTOR_LABELS[predictor];
   const label = meta.label;
@@ -588,10 +590,11 @@ function renderGWRCoefMap(data, geojson, predictor, significantOnly) {
   const dominant = vpos > values.length / 2 ? vpos : values.length - vpos;
   const consistency = (dominant / values.length * 100).toFixed(0) + '%';
 
-  // Partition counties by significance (|t| > 1.96 at α = 0.05)
+  // Partition counties by significance at the da Silva & Fotheringham (2016) adjusted
+  // critical value: alpha = 0.05 x k / ENP = 0.05 x 8 / 75.6 = 0.00529, |t| > 2.800
   const sig = [], nonsig = [];
   data.forEach(d => {
-    if (Math.abs(d[tvalKey]) > 1.96) sig.push(d); else nonsig.push(d);
+    if (Math.abs(d[tvalKey]) > T_CRIT) sig.push(d); else nonsig.push(d);
   });
   const pctSig = (sig.length / data.length * 100).toFixed(0) + '%';
   document.getElementById('coefSignificant').textContent = sig.length + ' / ' + data.length + ' (' + pctSig + ')';
@@ -611,7 +614,7 @@ function renderGWRCoefMap(data, geojson, predictor, significantOnly) {
         marker: { line: { color: '#FAF6ED', width: 0.3 } },
         text: nonsig.map(d => d.county),
         customdata: nonsig.map(d => [d[predictor], d[tvalKey]]),
-        hovertemplate: '<b>%{text}</b><br>β = %{customdata[0]:.3f} · t = %{customdata[1]:.2f}<br><i>not significant (p ≥ 0.05)</i><extra></extra>'
+        hovertemplate: '<b>%{text}</b><br>β = %{customdata[0]:.3f} · t = %{customdata[1]:.2f}<br><i>not significant (|t| ≤ 2.80, adjusted)</i><extra></extra>'
       });
     }
     if (sig.length) {
