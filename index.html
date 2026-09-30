@@ -194,7 +194,7 @@
       <div>
         <div class="kicker">A Health Security Perspective</div>
         <h1>Geospatial modeling of <em>preterm birth risk</em> across U.S. counties.</h1>
-        <p class="hero-sub">Across 570 U.S. counties with populations above 100,000, socioeconomic vulnerability, healthcare access, and maternal demographics jointly shape preterm birth outcomes. This analysis benchmarks nine modeling paradigms — from ordinary least squares to deep neural networks to Geographically Weighted Regression — and asks where each approach succeeds, where it fails, and what the residuals reveal.</p>
+        <p class="hero-sub">Across 570 U.S. counties with populations above 100,000, socioeconomic vulnerability, healthcare access, and maternal demographics jointly shape preterm birth outcomes. This analysis benchmarks eight models, from ordinary least squares through tree-based ensembles and deep neural networks to Geographically Weighted Regression, and asks where each approach succeeds, where it fails, and what the residuals reveal.</p>
         <div class="byline">
           <strong>Tolulope A. Oladeji</strong> · Digital Epidemiology Laboratory · University of Cincinnati
         </div>
@@ -221,7 +221,7 @@
       <div class="metric m-coral">
         <div class="metric-label">GWR Full-Sample R²</div>
         <div class="metric-value">0.665</div>
-        <div class="metric-sub">50% improvement over OLS (R² = 0.443) through local coefficient estimation</div>
+        <div class="metric-sub">50% improvement over OLS (R² = 0.444) through local coefficient estimation</div>
       </div>
       <div class="metric m-sage">
         <div class="metric-label">Moran's I Reduction</div>
@@ -247,6 +247,7 @@
     <div class="plot-card tall">
       <div id="choroplethMain" class="loading"><div class="spinner"></div><div class="loading-text">Loading U.S. county geometry</div></div>
     </div>
+    <div class="methodology-note"><strong>Explore county by county:</strong> the <a href="explore.html">interactive GWR explorer</a> (built with GeoLibre) lets you zoom to any region and click a county for its preterm birth rate, OLS and GWR predictions and residuals, local R², and each significant local coefficient.</div>
   </div>
 </section>
 
@@ -254,15 +255,15 @@
   <div class="container">
     <div class="panel-head">
       <div class="section-num">§ 02 · Model Performance</div>
-      <h2>Eight models, <em>one spatial winner</em>.</h2>
-      <p>Comparison of parametric, ensemble machine-learning, deep learning, and spatial-regression approaches. Tree-based ensembles (XGBoost, Gradient Boosting) capture non-linearities that OLS misses, but their improvements are modest relative to what Geographically Weighted Regression achieves by letting coefficients vary across space. Full-sample R² is reported since GWR does not use train/test splits.</p>
+      <h2>Eight models, <em>one spatially valid fit</em>.</h2>
+      <p>Comparison of parametric, ensemble machine-learning, deep learning, and spatial-regression approaches. On full-sample R², the tree-based ensembles fit most closely (Gradient Boosting 0.701, XGBoost 0.676), with Geographically Weighted Regression close behind (0.665). GWR's distinct contribution lies elsewhere: its residuals are the only ones that show no significant spatial autocorrelation (Moran's I = 0.006, p = 0.22, against 0.069 for the best machine-learning model and 0.075 for OLS, both p &lt; 0.001), and its county-specific coefficients reveal where each predictor matters.</p>
     </div>
     <div class="two-col">
       <div class="plot-card"><div id="modelR2"></div></div>
       <div class="plot-card"><div id="modelRMSE"></div></div>
     </div>
     <div class="methodology-note">
-      <strong>On metric choice:</strong> ML and NN models are reported at full-sample R² for comparability with GWR, which has no natural train/test split. Test-set R² values (where applicable) range from 0.499 (Random Forest) to 0.533 (Stacking Ensemble), confirming that generalization gains from spatial structure exceed those from model complexity alone.
+      <strong>On metric choice:</strong> All models are compared at full-sample R² because GWR has no natural train/test split. Full-sample R² measures fit to the data each model was trained on, so it favours flexible models and is not a measure of predictive generalization. On held-out test data, the machine-learning and neural-network models reach R² of 0.50 (Random Forest) to 0.53 (Stacking Ensemble). Because GWR has no equivalent out-of-sample estimate, these results do not rank GWR against the machine-learning models on predictive accuracy.
     </div>
   </div>
 </section>
@@ -370,7 +371,7 @@
     <div class="footer-grid">
       <div class="footer-brand">
         <h3>On methodology</h3>
-        <p>This dashboard accompanies a three-phase spatial epidemiology analysis of county-level preterm birth rates across the contiguous United States for calendar year 2023. The framework integrates CDC WONDER natality data with the American Community Survey and Census Gazetteer coordinates, benchmarking nine modeling approaches against Geographically Weighted Regression to test for spatial non-stationarity in the social determinants of preterm birth. All dashboard values — model predictions, residuals, local coefficients, and local R² — are fitted outputs from the Phase 2B notebook, not simulated.</p>
+        <p>This dashboard accompanies a three-phase spatial epidemiology analysis of county-level preterm birth rates across the United States for calendar year 2023. The framework integrates CDC WONDER natality data with the American Community Survey and Census Gazetteer coordinates, benchmarking seven modeling approaches against Geographically Weighted Regression to test for spatial non-stationarity in the social determinants of preterm birth. All dashboard values — model predictions, residuals, local coefficients, and local R² — are fitted outputs from the Phase 2B notebook, not simulated.</p>
         <div class="cite-block">
           March of Dimes. (2025). 2025 March of Dimes Report Card.<br>
           Waitzman NJ, Jalali A, Grosse SD. Preterm birth lifetime costs in the United States in 2016: An update. <em>Semin Perinatol.</em> 2021;45(3):151390.
@@ -512,19 +513,21 @@ function renderMoranChart() {
     textfont: { family: "'JetBrains Mono', monospace", size: 11, color: COLORS.ink },
     hovertemplate: "<b>%{x}</b><br>Moran's I = %{y:.4f}<extra></extra>"
   };
-  const zeroLine = { type: 'scatter', mode: 'lines', x: [-0.5, cats.length - 0.5], y: [0, 0], line: { color: COLORS.ink, width: 1, dash: 'dot' }, hoverinfo: 'skip', showlegend: false };
-  Plotly.newPlot('moranChart', [zeroLine, trace], {
+  // Zero reference drawn as a layout shape: a numeric-x line trace placed before the
+  // bar trace forced a numeric x-axis, so the category bars could not be drawn.
+  const zeroLine = { type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: 0, y1: 0, line: { color: COLORS.ink, width: 1, dash: 'dot' } };
+  Plotly.newPlot('moranChart', [trace], {
     ...BASE_LAYOUT, height: 420,
     title: { text: 'Residual Spatial Autocorrelation (k-nearest neighbors weights)', x: 0, y: 0.97, font: { family: "'Newsreader', serif", size: 16, color: COLORS.ink } },
-    xaxis: { tickfont: { size: 12.5 }, gridcolor: 'transparent' },
+    xaxis: { type: 'category', tickfont: { size: 12.5 }, gridcolor: 'transparent' },
+    shapes: [zeroLine],
     yaxis: { title: { text: "Moran's I", font: { family: "'JetBrains Mono', monospace", size: 11, color: COLORS.slate } }, gridcolor: COLORS.line, range: [-0.02, 0.21], tickfont: { family: "'JetBrains Mono', monospace", size: 10 } },
     showlegend: false,
     margin: { t: 50, r: 30, b: 60, l: 70 },
     annotations: [{
-      x: 2, y: 0.0057, xref: 'x', yref: 'y',
-      text: '92.4% reduction<br>from OLS →',
-      showarrow: true, arrowhead: 0, arrowcolor: COLORS.sage,
-      ax: -50, ay: -55,
+      x: 'GWR Residuals', y: 0.045, xref: 'x', yref: 'y',
+      text: '92.4% reduction<br>from OLS',
+      showarrow: false,
       font: { family: "'Newsreader', serif", size: 12, color: COLORS.sage, style: 'italic' },
       align: 'left'
     }]
